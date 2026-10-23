@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>API SiHayChamba</title>
+  <style>
+    body { font: 15px/1.5 system-ui, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; color: #212529; }
+    h1 { color: #007A33; font-size: 22px; }
+    pre { background: #F3F6F4; border: 1px solid #DDE3E7; border-radius: 8px; padding: 12px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>API de Travesías Conecta · base sihaychamba</h1>
+  <p>Estado actual de <code>GET /api/health</code>:</p>
+  <pre id="estado">Consultando…</pre>
+  <script>
+    fetch('/api/health').then((r) => r.json())
+      .then((d) => { document.getElementById('estado').textContent = JSON.stringify(d, null, 2); })
+      .catch(() => { document.getElementById('estado').textContent = 'No se pudo consultar la API.'; });
+  </script>
+</body>
+</html>

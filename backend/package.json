@@ -1,15 +1,15 @@
 {
-  "name": "travesias-conecta-backend",
-  "version": "1.0.0",
+  "name": "sihaychamba-backend",
+  "version": "2.0.0",
   "private": true,
-  "description": "API REST comunitaria de Travesías Conecta",
-  "main": "server.js",
+  "description": "API REST de Travesías Conecta sobre la base MySQL sihaychamba",
+  "main": "app.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
-    "test": "node --test test/*.test.js",
-    "db:check": "node scripts/verificar_mysql.js",
-    "schema:inspect": "node scripts/inspeccionar_esquema.js"
+    "start": "node app.js",
+    "dev": "node --watch app.js",
+    "test": "node --test test/api.test.js",
+    "test:mysql": "node --test test/mysql.solo-lectura.js",
+    "db:check": "node services/salud.service.js"
   },
   "engines": {
     "node": ">=20"
