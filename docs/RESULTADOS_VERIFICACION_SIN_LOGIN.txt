@@ -1,0 +1,15 @@
+Travesías Conecta - edición de prueba SIN login
+Fecha: 2026-10-23
+
+Verificaciones ejecutadas:
+- node --check de todos los archivos .js del backend: correcto.
+- npm test (se reutilizaron módulos Node.js de otro proyecto adjunto exclusivamente para estas pruebas): 10 de 10 aprobadas, sin fallos.
+- Escenarios cubiertos: API pública sin Bearer token, desaparición de /api/auth/session, protección administrativa X-Admin-Key, identificación X-Contact-Key, validaciones de encuestas y contactos, SQL parametrizado, mensajes de diagnóstico.
+- Comprobación estática de imports relativos Dart: no hay imports inexistentes.
+- Integridad del ZIP: verificada al empaquetar.
+
+NO se ha ejecutado:
+- flutter pub get / flutter analyze / compilación Chrome, porque Flutter SDK no está instalado en el entorno de preparación.
+- Conexión real al servidor MySQL 172.27.30.205:3309; no hay acceso o credenciales del usuario.
+
+Advertencia: Estas pruebas usan una base de datos simulada; requieren nuevas verificaciones con el MySQL real en el equipo del usuario.

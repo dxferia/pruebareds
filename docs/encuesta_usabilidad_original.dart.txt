@@ -1,0 +1,429 @@
+import 'package:flutter/material.dart';
+
+import 'cliente_encuesta_api.dart';
+import 'estilos_travesias.dart';
+import 'repositorio_encuesta.dart';
+
+class _Pregunta {
+  const _Pregunta(this.numero, this.texto);
+  final int numero;
+  final String texto;
+}
+
+/// Cuestionario breve propio (NO es la escala estandarizada SUS).
+/// Cambios en su redaccion requieren incrementar versionEncuesta.
+const _preguntas = <_Pregunta>[
+  _Pregunta(1, 'Me resultó fácil aprender a utilizar este subproyecto.'),
+  _Pregunta(2, 'Pude encontrar fácilmente las opciones y funciones que necesitaba.'),
+  _Pregunta(3, 'La información y los textos de la interfaz fueron claros y comprensibles.'),
+  _Pregunta(4, 'Logré realizar las tareas que necesitaba sin dificultades innecesarias.'),
+  _Pregunta(5, 'En general, estoy satisfecho con la experiencia de uso de este subproyecto.'),
+];
+
+const _etiquetas = <String>[
+  'Totalmente en desacuerdo',
+  'En desacuerdo',
+  'Ni de acuerdo ni en desacuerdo',
+  'De acuerdo',
+  'Totalmente de acuerdo',
+];
+
+/// Widget compartido para cada subproyecto. El subproyecto real proviene
+/// del catalogo/autorizacion de la app, NUNCA de un texto ingresado por usuarios.
+/// El login unico se administra fuera del modulo.
+///
+/// La propia encuesta aplica el tema estandar institucional sin modificar
+/// el ThemeData global del subproyecto. Para la app completa, configure
+/// MaterialApp(theme: temaTravesiasEncuesta()).
+class EncuestaUsabilidad extends StatefulWidget {
+  const EncuestaUsabilidad({
+    super.key,
+    required this.subproyectoId,
+    required this.cliente,
+    this.nombreSubproyecto,
+    this.versionEncuesta = 1,
+    this.mostrarIdentidadInstitucional = true,
+    this.alEnviar,
+    this.alCancelar,
+  });
+
+  final String subproyectoId;
+  final String? nombreSubproyecto;
+  final RepositorioEncuesta cliente;
+  final int versionEncuesta;
+  final bool mostrarIdentidadInstitucional;
+  final VoidCallback? alEnviar;
+  final VoidCallback? alCancelar;
+
+  @override
+  State<EncuestaUsabilidad> createState() => _EncuestaUsabilidadState();
+}
+
+class _EncuestaUsabilidadState extends State<EncuestaUsabilidad> {
+  final Map<int, int> _respuestas = {};
+  bool _enviando = false;
+  bool _enviada = false;
+  String? _error;
+  int _generacion = 0;
+
+  @override
+  void didUpdateWidget(covariant EncuestaUsabilidad anterior) {
+    super.didUpdateWidget(anterior);
+    if (anterior.subproyectoId != widget.subproyectoId ||
+        anterior.versionEncuesta != widget.versionEncuesta) {
+      _generacion++;
+      _respuestas.clear();
+      _enviando = false;
+      _enviada = false;
+      _error = null;
+    }
+  }
+
+  Future<void> _enviar() async {
+    if (_enviando || _enviada || _respuestas.length != 5) return;
+    final generacion = _generacion;
+    final id = widget.subproyectoId;
+    final version = widget.versionEncuesta;
+    setState(() {
+      _enviando = true;
+      _error = null;
+    });
+    try {
+      await widget.cliente.enviar(
+        subproyectoId: id,
+        versionEncuesta: version,
+        respuestas: [for (final pregunta in _preguntas) _respuestas[pregunta.numero]!],
+      );
+      if (!mounted || generacion != _generacion) return;
+      setState(() => _enviada = true);
+      widget.alEnviar?.call();
+    } on ErrorEncuesta catch (e) {
+      if (!mounted || generacion != _generacion) return;
+      setState(() => _error = e.mensaje);
+    } catch (_) {
+      if (!mounted || generacion != _generacion) return;
+      setState(() => _error = 'Ocurrió un error inesperado. Inténtalo nuevamente.');
+    } finally {
+      if (mounted && generacion == _generacion) {
+        setState(() => _enviando = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: temaTravesiasEncuesta(),
+      child: Builder(
+        builder: (context) => ColoredBox(
+          color: TravesiasColores.fondo,
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 820),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (widget.mostrarIdentidadInstitucional) ...[
+                      const _BarraIdentidad(),
+                      const SizedBox(height: 20),
+                    ],
+                    if (_enviada) _pantallaExito(context) else _formulario(context),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _pantallaExito(BuildContext context) {
+    final textos = Theme.of(context).textTheme;
+    return _Tarjeta(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            const Icon(Icons.check_circle_outline,
+                size: 60, color: TravesiasColores.primario),
+            const SizedBox(height: 16),
+            Text('¡Gracias por tu opinión!',
+                style: textos.headlineSmall, textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            Text('Tu encuesta se guardó correctamente en el subproyecto correspondiente.',
+                style: textos.bodyLarge, textAlign: TextAlign.center),
+            if (widget.alCancelar != null) ...[
+              const SizedBox(height: 24),
+              OutlinedButton.icon(
+                onPressed: widget.alCancelar,
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Volver al subproyecto'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _formulario(BuildContext context) {
+    final textos = Theme.of(context).textTheme;
+    final completadas = _respuestas.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text('Encuesta de usabilidad', style: textos.headlineSmall),
+        const SizedBox(height: 8),
+        Text(
+          'Cuéntanos cómo fue tu experiencia. Selecciona una respuesta por afirmación.',
+          style: textos.bodyLarge,
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Icon(Icons.layers_outlined, size: 18,
+                color: TravesiasColores.complementario),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Subproyecto: ${widget.nombreSubproyecto?.trim().isNotEmpty == true ? widget.nombreSubproyecto : widget.subproyectoId}',
+                style: textos.bodyMedium,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        _Tarjeta(
+          child: Padding(
+            padding: const EdgeInsets.all(TravesiasEspacios.paddingTarjeta),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text('Tu progreso', style: textos.titleSmall),
+                    ),
+                    Text('$completadas de 5', style: textos.labelLarge),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Semantics(
+                  label: '$completadas de 5 preguntas respondidas',
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: completadas / 5,
+                      minHeight: 7,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text('Escala: 1 = Totalmente en desacuerdo · 5 = Totalmente de acuerdo',
+                    style: textos.bodyMedium),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        for (final pregunta in _preguntas) ...[
+          _tarjetaPregunta(context, pregunta),
+          const SizedBox(height: 12),
+        ],
+        if (_error != null) ...[
+          Semantics(
+            liveRegion: true,
+            child: _Tarjeta(
+              child: Padding(
+                padding: const EdgeInsets.all(TravesiasEspacios.paddingTarjeta),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.error_outline, color: TravesiasColores.alerta),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(_error!, style: textos.bodyMedium?.copyWith(
+                        color: TravesiasColores.alerta,
+                      )),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        Padding(
+          padding: const EdgeInsets.only(top: 8, bottom: 12),
+          child: Text(
+            'Las respuestas se asociarán a este subproyecto y a tu cuenta del inicio de sesión único. No solicitamos datos personales adicionales.',
+            style: textos.bodySmall,
+          ),
+        ),
+        Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            if (widget.alCancelar != null)
+              OutlinedButton.icon(
+                onPressed: _enviando ? null : widget.alCancelar,
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Regresar'),
+              ),
+            ElevatedButton.icon(
+              onPressed: _enviando || completadas != 5 ? null : _enviar,
+              icon: _enviando
+                  ? const SizedBox(
+                      height: 18, width: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.send_outlined),
+              label: Text(_enviando ? 'Enviando...' : 'Enviar respuestas'),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+      ],
+    );
+  }
+
+  Widget _tarjetaPregunta(BuildContext context, _Pregunta pregunta) {
+    final textos = Theme.of(context).textTheme;
+    final marcada = _respuestas[pregunta.numero];
+    return _Tarjeta(
+      child: Padding(
+        padding: const EdgeInsets.all(TravesiasEspacios.paddingTarjeta),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('${pregunta.numero}. ${pregunta.texto}',
+                style: textos.titleMedium),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (var valor = 1; valor <= 5; valor++)
+                  Semantics(
+                    label: 'Pregunta ${pregunta.numero}: ${_etiquetas[valor - 1]}',
+                    selected: marcada == valor,
+                    child: Tooltip(
+                      message: _etiquetas[valor - 1],
+                      child: ChoiceChip(
+                        selected: marcada == valor,
+                        showCheckmark: false,
+                        selectedColor: const Color(0xFFE2F2E8),
+                        backgroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          side: BorderSide(
+                            color: marcada == valor
+                                ? TravesiasColores.primario
+                                : TravesiasColores.bordeSuave,
+                            width: marcada == valor ? 2 : 1,
+                          ),
+                        ),
+                        label: SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: Center(
+                            child: Text('$valor', style: textos.labelLarge?.copyWith(
+                              color: TravesiasColores.texto,
+                            )),
+                          ),
+                        ),
+                        onSelected: _enviando ? null : (_) => setState(() {
+                          _respuestas[pregunta.numero] = valor;
+                          _error = null;
+                        }),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            if (marcada != null) ...[
+              const SizedBox(height: 12),
+              Text('Tu elección: ${_etiquetas[marcada - 1]}',
+                  style: textos.bodyMedium?.copyWith(
+                    color: TravesiasColores.primario,
+                  )),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Los tres logotipos se EXTRAJERON de la guia entregada:
+/// universidad (pagina 1); Ingenieria y Red Comunitaria (pagina 2).
+/// Se muestran sin recortar ni deformar, con BoxFit.contain.
+class _BarraIdentidad extends StatelessWidget {
+  const _BarraIdentidad();
+
+  @override
+  Widget build(BuildContext context) {
+    return _Tarjeta(
+      child: Padding(
+        padding: const EdgeInsets.all(TravesiasEspacios.paddingTarjeta),
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 24,
+          runSpacing: 12,
+          children: const [
+            _Logo('universidad_amazonia.png', 'Universidad de la Amazonia', 77),
+            _Logo('ingenieria_sistemas.png', 'Programa de Ingeniería de Sistemas', 145),
+            _Logo('red_comunitaria.png', 'Red Comunitaria Uniamazonia', 62),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Logo extends StatelessWidget {
+  const _Logo(this.archivo, this.etiqueta, this.ancho);
+  final String archivo;
+  final String etiqueta;
+  final double ancho;
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      'packages/travesias_encuesta/assets/logos/$archivo',
+      semanticLabel: etiqueta,
+      height: 60,
+      width: ancho,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.medium,
+    );
+  }
+}
+
+/// Fuerza la elevacion, radio y color exactos independientemente
+/// de los temas preexistentes en los subproyectos.
+class _Tarjeta extends StatelessWidget {
+  const _Tarjeta({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Colors.white,
+      elevation: TravesiasEspacios.elevacionTarjeta,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(TravesiasEspacios.radioTarjeta),
+      ),
+      child: child,
+    );
+  }
+}

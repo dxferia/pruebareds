@@ -1,0 +1,11 @@
+{
+  "name": "Travesías Conecta",
+  "short_name": "Travesías",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#F8F9FA",
+  "theme_color": "#007A33",
+  "description": "Red comunitaria de oficios y servicios.",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false
+}

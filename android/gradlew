@@ -1,0 +1,29 @@
+#!/usr/bin/env sh
+set -eu
+VERSION="8.10.2"
+BASE="${GRADLE_USER_HOME:-$HOME/.gradle}/travesias-wrapper"
+DIST="$BASE/gradle-$VERSION"
+ZIP="$BASE/gradle-$VERSION-bin.zip"
+URL="https://services.gradle.org/distributions/gradle-$VERSION-bin.zip"
+
+if [ ! -x "$DIST/bin/gradle" ]; then
+  mkdir -p "$BASE"
+  if [ ! -f "$ZIP" ]; then
+    if command -v curl >/dev/null 2>&1; then
+      curl -L --fail "$URL" -o "$ZIP"
+    elif command -v wget >/dev/null 2>&1; then
+      wget -O "$ZIP" "$URL"
+    else
+      echo "Se requiere curl o wget para descargar Gradle." >&2
+      exit 1
+    fi
+  fi
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -q -o "$ZIP" -d "$BASE"
+  else
+    echo "Se requiere unzip para preparar Gradle." >&2
+    exit 1
+  fi
+fi
+
+exec "$DIST/bin/gradle" "$@"
