@@ -158,6 +158,18 @@ test('flujo completo habitante → Junta → contacto → encuesta', async (t) =
     assert.equal(bd.t.respuestas[2].id_contacto, s.idAna);
   });
 
+  await t.test('Junta: contactos, resultados calculados y cierre de encuesta', async () => {
+    const c = await api('GET', '/admin/contactos', { admin: ADMIN });
+    assert.ok(c.data.length >= 3 && c.data.every((x) => !('clave_edicion_hash' in x)));
+    const r = await api('GET', '/admin/encuestas/travesias-usabilidad-v1/resultados', { admin: ADMIN });
+    assert.deepEqual([r.data[0].total_respuestas, r.data[0].promedio, r.data[0].porcentaje_favorable], [3, 4, 100]);
+    assert.equal((await api('GET', '/admin/encuestas/otra/resultados', { admin: ADMIN })).status, 404);
+    assert.equal((await api('PATCH', '/admin/encuestas/travesias-usabilidad-v1', { admin: ADMIN, body: { estado: 'X' } })).status, 400);
+    assert.equal((await api('PATCH', '/admin/encuestas/travesias-usabilidad-v1', { admin: ADMIN, body: { estado: 'CERRADA' } })).status, 200);
+    assert.deepEqual((await api('GET', '/encuestas')).data, [], 'una encuesta cerrada deja de listarse');
+    assert.equal((await api('POST', '/encuestas/travesias-usabilidad-v1/respuestas', { body: { respuestas: [] } })).status, 404);
+  });
+
   await t.test('errores generales', async () => {
     const r = await fetch(`${base}/api/contactos`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{malo' });
     assert.deepEqual([r.status, (await r.json()).error], [400, 'El cuerpo JSON no es válido.']);

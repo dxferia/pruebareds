@@ -56,4 +56,14 @@ module.exports = {
   },
 
   historial: async (req, res) => res.json(await admin.historial()),
+
+  contactos: async (req, res) => res.json(await admin.contactos()),
+
+  resultadosEncuesta: async (req, res) => res.json(await admin.resultadosEncuesta(id(req.params.id, 'Encuesta inválida.'))),
+
+  cambiarEstadoEncuesta: async (req, res) => {
+    const estado = req.body?.estado;
+    requerir(['BORRADOR', 'ACTIVA', 'CERRADA'].includes(estado), 'El estado debe ser BORRADOR, ACTIVA o CERRADA.');
+    res.json(await admin.cambiarEstadoEncuesta(id(req.params.id, 'Encuesta inválida.'), estado));
+  },
 };

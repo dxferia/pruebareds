@@ -1,9 +1,8 @@
-// Encuestas (migración 002). Una respuesta por contacto y encuesta; las anónimas no tienen límite.
-const { pool, transaccion } = require('../config/db');
+// Encuestas (sql/extension_sihaychamba.sql). Lectura desde vw_encuestas_vigentes; escritura con
+// sp_registrar_respuesta_encuesta. Una respuesta por contacto y encuesta; las anónimas no tienen límite.
+const { pool } = require('../config/db');
 const { HttpError, requerir } = require('../utils/validacion');
 
-const ACTIVA = `estado = 'ACTIVA' AND (disponible_desde IS NULL OR disponible_desde <= NOW())
-  AND (disponible_hasta IS NULL OR disponible_hasta >= NOW())`;
 const PREGUNTAS = 'SELECT id_pregunta, numero, texto, tipo, obligatoria, opciones_json FROM pregunta_encuesta WHERE id_encuesta = ? ORDER BY numero';
 
 const comoOpciones = (v) => {
@@ -12,18 +11,26 @@ const comoOpciones = (v) => {
 };
 
 async function listar() {
-  const [rows] = await pool.execute(`SELECT id_encuesta, titulo, descripcion, version_encuesta FROM encuesta WHERE ${ACTIVA} ORDER BY titulo`);
+  const [rows] = await pool.execute(`SELECT id_encuesta, titulo, descripcion, version_encuesta, total_preguntas
+    FROM vw_encuestas_vigentes ORDER BY titulo`);
   return rows;
 }
 
-async function detalle(id) {
-  const [rows] = await pool.execute(`SELECT id_encuesta, titulo, descripcion, version_encuesta FROM encuesta WHERE id_encuesta = ? AND ${ACTIVA}`, [id]);
+async function vigenteConPreguntas(id) {
+  const [rows] = await pool.execute(`SELECT id_encuesta, titulo, descripcion, version_encuesta
+    FROM vw_encuestas_vigentes WHERE id_encuesta = ?`, [id]);
   if (!rows.length) throw new HttpError(404, 'La encuesta no está disponible.');
   const [preguntas] = await pool.execute(PREGUNTAS, [id]);
-  return { ...rows[0], preguntas: preguntas.map((p) => ({ ...p, obligatoria: Boolean(p.obligatoria), opciones_json: comoOpciones(p.opciones_json) })) };
+  return { encuesta: rows[0], preguntas };
+}
+
+async function detalle(id) {
+  const { encuesta, preguntas } = await vigenteConPreguntas(id);
+  return { ...encuesta, preguntas: preguntas.map((p) => ({ ...p, obligatoria: Boolean(p.obligatoria), opciones_json: comoOpciones(p.opciones_json) })) };
 }
 
 // Valida cada respuesta contra el tipo de su pregunta (ESCALA 1-5, TEXTO, UNICA, MULTIPLE).
+// MySQL repite la validación en trg_detalle_validar_bi; aquí se hace primero para dar mensajes claros.
 function validarRespuestas(preguntas, respuestas) {
   requerir(Array.isArray(respuestas), 'Las respuestas deben enviarse como una lista.');
   const mapa = new Map(preguntas.map((p) => [Number(p.id_pregunta), p]));
@@ -49,20 +56,13 @@ function validarRespuestas(preguntas, respuestas) {
 }
 
 async function responder(idEncuesta, idCuenta, respuestas) {
+  const { preguntas } = await vigenteConPreguntas(idEncuesta);
+  if (!preguntas.length) throw new HttpError(409, 'Esta encuesta todavía no tiene preguntas.');
+  const normalizadas = validarRespuestas(preguntas, respuestas);
   try {
-    return await transaccion(idCuenta || 'anonimo', async (conn) => {
-      const [rows] = await conn.execute(`SELECT id_encuesta FROM encuesta WHERE id_encuesta = ? AND ${ACTIVA}`, [idEncuesta]);
-      if (!rows.length) throw new HttpError(404, 'La encuesta no está disponible.');
-      const [preguntas] = await conn.execute(PREGUNTAS, [idEncuesta]);
-      if (!preguntas.length) throw new HttpError(409, 'Esta encuesta todavía no tiene preguntas.');
-      const normalizadas = validarRespuestas(preguntas, respuestas);
-      const [r] = await conn.execute('INSERT INTO respuesta_encuesta (id_encuesta, id_contacto) VALUES (?, ?)', [idEncuesta, idCuenta]);
-      for (const n of normalizadas) {
-        await conn.execute('INSERT INTO detalle_respuesta_encuesta (id_respuesta, id_pregunta, valor_json) VALUES (?, ?, ?)',
-          [r.insertId, n.id_pregunta, JSON.stringify(n.valor)]);
-      }
-      return { id_respuesta: r.insertId, guardado: true };
-    });
+    const [resultados] = await pool.query('CALL sp_registrar_respuesta_encuesta(?,?,?)',
+      [idEncuesta, idCuenta, JSON.stringify(normalizadas)]);
+    return { id_respuesta: resultados[0][0].id_respuesta, guardado: true };
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') throw new HttpError(409, 'Ya respondiste esta encuesta desde este contacto.');
     throw error;

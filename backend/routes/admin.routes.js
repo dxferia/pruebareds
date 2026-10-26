@@ -12,4 +12,7 @@ module.exports = Router()
   .post('/publicaciones/:id/cerrar', c.cerrarPublicacion)
   .get('/cuentas', c.cuentas)
   .patch('/cuentas/:id', c.cambiarEstadoCuenta)
-  .get('/historial', c.historial);
+  .get('/historial', c.historial)
+  .get('/contactos', c.contactos)
+  .get('/encuestas/:id/resultados', c.resultadosEncuesta)
+  .patch('/encuestas/:id', c.cambiarEstadoEncuesta);

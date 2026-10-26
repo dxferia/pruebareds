@@ -19,7 +19,7 @@ backend/
 ├── services/                    SQL parametrizado y reglas de negocio (uno por módulo)
 ├── utils/validacion.js          HttpError y validadores reutilizables
 ├── public/index.html            Página de estado (consulta /api/health)
-├── sql/                         Migraciones 001 y 002 (tablas que el modelo base no trae)
+├── sql/extension_sihaychamba.sql Tablas de contacto y encuestas + triggers, procedimientos, funciones y vistas
 ├── test/                        api.test.js (MySQL simulado) y mysql.solo-lectura.js (MySQL real)
 ├── app.js  .env  .env.example  .gitignore  package.json  package-lock.json  Dockerfile
 ```
@@ -36,14 +36,14 @@ Base: `http://localhost:3000/api`. Las respuestas exitosas devuelven el JSON dir
 | | `GET /publicaciones/:id` | público | `vw_publicaciones_vigentes` |
 | Mi contacto | `POST /contactos` → 201 + `clave_edicion` | público | `cuenta_acceso`, `contacto_perfil` |
 | | `GET /contactos/mi` | X-Contact-Key | `contacto_perfil` ⋈ `cuenta_acceso` |
-| | `PUT /contactos/mi` | X-Contact-Key | `cuenta_acceso`, `contacto_perfil` |
+| | `PUT /contactos/mi` | X-Contact-Key | `sp_actualizar_contacto` |
 | Solicitudes | `POST /solicitudes-publicacion` | X-Contact-Key, cuenta no suspendida | `sp_crear_solicitud_publicacion` |
 | | `GET /solicitudes-publicacion/mias` | X-Contact-Key | `vw_solicitudes_publicacion` |
 | | `POST /solicitudes-contacto` | X-Contact-Key, cuenta no suspendida | `publicacion`, `sp_crear_solicitud_contacto` (+ trigger) |
 | | `GET /solicitudes-contacto/mias` | X-Contact-Key | `vw_solicitudes_contacto` |
-| Encuestas | `GET /encuestas` | público | `encuesta` |
-| | `GET /encuestas/:id` | público | `encuesta`, `pregunta_encuesta` |
-| | `POST /encuestas/:id/respuestas` | público; X-Contact-Key opcional (una por contacto) | `respuesta_encuesta`, `detalle_respuesta_encuesta` |
+| Encuestas | `GET /encuestas` | público | `vw_encuestas_vigentes` |
+| | `GET /encuestas/:id` | público | `vw_encuestas_vigentes`, `pregunta_encuesta` |
+| | `POST /encuestas/:id/respuestas` | público; X-Contact-Key opcional (una por contacto) | `sp_registrar_respuesta_encuesta` |
 | Junta | `GET /admin/solicitudes-publicacion?estado=` | X-Admin-Key | `vw_solicitudes_publicacion` |
 | | `POST /admin/solicitudes-publicacion/:id/aprobar` `{tipo: LABOR\|SERVICIO}` | X-Admin-Key | `sp_aprobar_solicitud_publicacion` |
 | | `POST /admin/solicitudes-publicacion/:id/rechazar` `{motivo}` | X-Admin-Key | `sp_rechazar_solicitud_publicacion` |
@@ -54,6 +54,9 @@ Base: `http://localhost:3000/api`. Las respuestas exitosas devuelven el JSON dir
 | | `GET /admin/cuentas` | X-Admin-Key | `cuenta_acceso` |
 | | `PATCH /admin/cuentas/:id` `{estado}` (español o inglés) | X-Admin-Key | `sp_cambiar_estado_cuenta` |
 | | `GET /admin/historial` | X-Admin-Key | `vw_historial_gestion` |
+| | `GET /admin/contactos` | X-Admin-Key | `vw_contactos_perfil` |
+| | `GET /admin/encuestas/:id/resultados` | X-Admin-Key | `vw_resultados_encuesta` |
+| | `PATCH /admin/encuestas/:id` `{estado: BORRADOR\|ACTIVA\|CERRADA}` | X-Admin-Key | `sp_cambiar_estado_encuesta` |
 
 Códigos de estado: 400 datos inválidos · 401 falta clave o no se reconoce · 403 clave de la Junta incorrecta o cuenta suspendida · 404 no existe · 409 conflicto (regla de negocio de MySQL, duplicado o ya procesado) · 503 MySQL no disponible, migración faltante o `ADMIN_API_KEY` sin configurar.
 
@@ -70,7 +73,7 @@ Códigos de estado: 400 datos inválidos · 401 falta clave o no se reconoce · 
 
 ## Puesta en marcha (Windows, PowerShell)
 
-1. **Base de datos.** En MySQL Workbench, conectado a `127.0.0.1:3308`, verifica con `SHOW DATABASES LIKE 'sihaychamba'; USE sihaychamba; SHOW TABLES;` que existan las 7 tablas de `bd_sihaychamba.sql`. Después, haz una copia de seguridad y ejecuta en este orden `sql/001_perfiles_contacto.sql` y `sql/002_encuestas.sql`. Ambos usan `CREATE TABLE IF NOT EXISTS` y no modifican las tablas existentes.
+1. **Base de datos.** En MySQL Workbench, conectado a `127.0.0.1:3308`, verifica con `SHOW DATABASES LIKE 'sihaychamba'; USE sihaychamba; SHOW TABLES;` que existan las 7 tablas de `bd_sihaychamba.sql`. Después, haz una copia de seguridad y ejecuta `sql/extension_sihaychamba.sql` (re-ejecutable: no borra tablas ni datos).
 2. **Dependencias.** Ejecuta `cd backend` y luego `npm install`.
 3. **Clave de la Junta.** Ejecuta `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` y pega el resultado en `ADMIN_API_KEY=` dentro de `.env`.
 4. **Comprobaciones.**

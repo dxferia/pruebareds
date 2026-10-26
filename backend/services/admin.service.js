@@ -85,7 +85,29 @@ async function historial() {
   return rows;
 }
 
+// Perfiles de contacto sin la clave de edición (vw_contactos_perfil).
+async function contactos() {
+  const [rows] = await pool.execute(`SELECT id_cuenta, nombre, estado, correo, telefono, medio_preferido, creado_en, actualizado_en
+    FROM vw_contactos_perfil ORDER BY creado_en DESC LIMIT 500`);
+  return rows;
+}
+
+// Datos calculados por pregunta: total, promedio y % favorable (vw_resultados_encuesta).
+async function resultadosEncuesta(id) {
+  await uno('SELECT 1 FROM encuesta WHERE id_encuesta = ?', [id], 'La encuesta no existe.');
+  const [rows] = await pool.execute(`SELECT id_pregunta, numero, texto, tipo, total_respuestas, promedio, porcentaje_favorable
+    FROM vw_resultados_encuesta WHERE id_encuesta = ? ORDER BY numero`, [id]);
+  return rows;
+}
+
+async function cambiarEstadoEncuesta(id, estado) {
+  await uno('SELECT 1 FROM encuesta WHERE id_encuesta = ?', [id], 'La encuesta no existe.');
+  await pool.query('CALL sp_cambiar_estado_encuesta(?,?,?)', [id, estado, ACTOR]);
+  return { id_encuesta: id, estado };
+}
+
 module.exports = {
+  contactos, resultadosEncuesta, cambiarEstadoEncuesta,
   solicitudesPublicacion, aprobar, rechazar, solicitudesContacto, decidirContacto,
   actualizarPublicacion, cerrarPublicacion, cuentas, cambiarEstadoCuenta, historial,
 };

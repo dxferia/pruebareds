@@ -17,7 +17,7 @@ test('conexión y esquema sihaychamba', async () => {
   const bd = await estadoBd();
   assert.ok(bd.conectada, `Sin conexión: ${bd.codigo} ${bd.sugerencia || ''}`);
   assert.equal(bd.base, 'sihaychamba');
-  assert.deepEqual(bd.tablas_faltantes, [], 'Aplica sql/001_perfiles_contacto.sql y sql/002_encuestas.sql');
+  assert.deepEqual(bd.tablas_faltantes, [], 'Ejecuta sql/extension_sihaychamba.sql');
 });
 
 test('procedimientos almacenados usados por la API', async () => {
@@ -25,7 +25,8 @@ test('procedimientos almacenados usados por la API', async () => {
     WHERE ROUTINE_SCHEMA = DATABASE() AND ROUTINE_TYPE = 'PROCEDURE'`);
   const hay = new Set(rows.map((x) => x.r));
   for (const sp of ['sp_crear_solicitud_publicacion', 'sp_aprobar_solicitud_publicacion', 'sp_rechazar_solicitud_publicacion',
-    'sp_crear_solicitud_contacto', 'sp_actualizar_publicacion', 'sp_cerrar_publicacion', 'sp_cambiar_estado_cuenta']) {
+    'sp_crear_solicitud_contacto', 'sp_actualizar_publicacion', 'sp_cerrar_publicacion', 'sp_cambiar_estado_cuenta',
+    'sp_crear_contacto', 'sp_actualizar_contacto', 'sp_registrar_respuesta_encuesta', 'sp_cambiar_estado_encuesta']) {
     assert.ok(hay.has(sp), `Falta ${sp}`);
   }
 });
@@ -42,4 +43,6 @@ test('todas las consultas SELECT de los servicios son válidas contra el esquema
   await admin.solicitudesContacto();
   await admin.cuentas();
   await admin.historial();
+  await admin.contactos();
+  await pool.execute('SELECT id_pregunta, total_respuestas, promedio, porcentaje_favorable FROM vw_resultados_encuesta LIMIT 1');
 });

@@ -1,6 +1,6 @@
-// Perfil "Mi contacto": cuenta_acceso (nombre, estado) + contacto_perfil (migración 001).
+// Perfil "Mi contacto": cuenta_acceso + contacto_perfil. Escrituras con sp_crear_contacto / sp_actualizar_contacto.
 const crypto = require('node:crypto');
-const { pool, transaccion } = require('../config/db');
+const { pool } = require('../config/db');
 
 const hash = (clave) => crypto.createHash('sha256').update(clave).digest('hex');
 
@@ -16,20 +16,14 @@ async function porClave(clave) {
 async function crear(datos) {
   const id = `con-${crypto.randomUUID()}`;
   const clave = crypto.randomBytes(32).toString('hex');
-  await transaccion(id, async (conn) => {
-    await conn.execute("INSERT INTO cuenta_acceso (id_cuenta, nombre, estado) VALUES (?, ?, 'PENDIENTE')", [id, datos.nombre]);
-    await conn.execute(`INSERT INTO contacto_perfil (id_cuenta, correo, telefono, medio_preferido, clave_edicion_hash)
-      VALUES (?, ?, ?, ?, ?)`, [id, datos.correo, datos.telefono, datos.medio_preferido, hash(clave)]);
-  });
+  await pool.query('CALL sp_crear_contacto(?,?,?,?,?,?)',
+    [id, datos.nombre, datos.correo, datos.telefono, datos.medio_preferido, hash(clave)]);
   return { id_cuenta: id, ...datos, estado: 'PENDIENTE', clave_edicion: clave };
 }
 
 async function actualizar(cuenta, datos) {
-  await transaccion(cuenta.id_cuenta, async (conn) => {
-    await conn.execute('UPDATE cuenta_acceso SET nombre = ? WHERE id_cuenta = ?', [datos.nombre, cuenta.id_cuenta]);
-    await conn.execute('UPDATE contacto_perfil SET correo = ?, telefono = ?, medio_preferido = ? WHERE id_cuenta = ?',
-      [datos.correo, datos.telefono, datos.medio_preferido, cuenta.id_cuenta]);
-  });
+  await pool.query('CALL sp_actualizar_contacto(?,?,?,?,?)',
+    [cuenta.id_cuenta, datos.nombre, datos.correo, datos.telefono, datos.medio_preferido]);
   return { id_cuenta: cuenta.id_cuenta, ...datos, estado: cuenta.estado };
 }
 
