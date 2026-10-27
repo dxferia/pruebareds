@@ -15,8 +15,9 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final featured = state.jobs.isEmpty ? null : state.jobs.first;
-    return AnimatedBuilder(animation:state,builder:(context,_)=>AppShell(
+    return AnimatedBuilder(animation:state,builder:(context,_){
+      final featured = state.jobs.isEmpty ? null : state.jobs.first; // la publicación más reciente
+      return AppShell(
       title: 'Travesías Conecta',
       role: 'Habitante',
       bottomIndex: 0,
@@ -108,7 +109,7 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-    ));
+    );});
   }
 
   void _goCategory(BuildContext context, String category) {

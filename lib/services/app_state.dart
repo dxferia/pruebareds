@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import 'api_service.dart';
 
+String _fecha(DateTime d) => d.toIso8601String().split('T').first; // AAAA-MM-DD para MySQL
+
 // Central presentation state; no mock records and no database queries in widgets.
 class AppState extends ChangeNotifier {
   AppState({ApiService? cliente, bool autoLoad = false}) : api = cliente ?? ApiService() {
@@ -11,7 +13,7 @@ class AppState extends ChangeNotifier {
   final ApiService api;
   final List<JobPost> jobs = [];
   final List<ContactRequest> contactRequests = [];
-  final List<PublicationRequest> publicationRequests = [];
+  final List<JobPost> myPublications = [];
   final List<CommunityAccess> accesses = [];
   final List<HistoryEntry> history = [];
   final Map<String, int> categoryIds = {};
@@ -31,19 +33,7 @@ class AppState extends ChangeNotifier {
       categoryIds
         ..clear()
         ..addEntries(categorias.map((c) => MapEntry(c.nombre, c.id)));
-      final publicaciones = await api.publicaciones();
-      jobs
-        ..clear()
-        ..addAll(publicaciones.map((p) => JobPost(
-            id: p.id,
-            title: p.titulo,
-            category: p.categoria,
-            location: p.ubicacion,
-            description: p.descripcion,
-            startDate: fechaDesdeSql(p.desde),
-            endDate: fechaDesdeSql(p.hasta),
-            people: cantidadDesdeSql(p.cantidad),
-            kind: p.tipo == 'SERVICIO' ? 'Servicio' : 'Labor')));
+      await _cargarPublicaciones();
       await loadMine();
     } catch (e) {
       error = e.toString();
@@ -53,18 +43,26 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  // Catálogo en el orden del backend (fecha_publicacion DESC). Se reemplaza solo al recibir la respuesta.
+  Future<void> _cargarPublicaciones() async {
+    final publicaciones = await api.publicaciones();
+    jobs
+      ..clear()
+      ..addAll(publicaciones);
+  }
+
   Future<void> loadMine() async {
     try {
       if (!await api.tieneContacto) {
-        publicationRequests.clear();
+        myPublications.clear();
         contactRequests.clear();
         notifyListeners();
         return;
       }
-      final publicaciones = await api.misSolicitudesPublicacionJson();
-      publicationRequests
+      final publicaciones = await api.misPublicaciones();
+      myPublications
         ..clear()
-        ..addAll(publicaciones.map(PublicationRequestApi.fromJson));
+        ..addAll(publicaciones);
       final contactos = await api.misSolicitudesContactoJson();
       contactRequests
         ..clear()
@@ -77,7 +75,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> activarJunta(String clave) async {
-    api.adminKey = clave;
+    api.adminKey = clave.trim(); // al copiar la clave de .env suelen venir espacios o saltos de línea
     try {
       await refreshJunta();
     } catch (_) {
@@ -88,10 +86,6 @@ class AppState extends ChangeNotifier {
 
   Future<void> refreshJunta() async {
     if (!isJunta) return;
-    final solicitudes = await api.adminListado('solicitudes-publicacion');
-    publicationRequests
-      ..clear()
-      ..addAll(solicitudes.map(PublicationRequestApi.fromJson));
     final cuentas = await api.adminListado('cuentas');
     accesses
       ..clear()
@@ -123,7 +117,6 @@ class AppState extends ChangeNotifier {
                 j.location.toLowerCase().contains(q));
       }).toList();
   JobPost byJobId(String id) => jobs.firstWhere((j) => j.id == id);
-  PublicationRequest byPublicationId(String id) => publicationRequests.firstWhere((p) => p.id == id);
   void setSearch(String value) {
     search = value;
     notifyListeners();
@@ -142,48 +135,54 @@ class AppState extends ChangeNotifier {
         orElse: () => ContactRequest(id: '', jobId: jobId, reason: reason, phone: phone, createdAt: DateTime.now()));
   }
 
-  Future<void> createPublication(
+  // Publica directamente (sin aprobación de la Junta). Solo modifica el catálogo cuando el backend confirma
+  // el guardado; la misma claveEnvio en un reintento devuelve la publicación ya creada en vez de duplicarla.
+  Future<JobPost> createPublication(
       {required String title,
       required String category,
+      required String kind,
       required String description,
       required String location,
       required DateTime start,
       required DateTime end,
-      required int people}) async {
+      required int people,
+      required String claveEnvio}) async {
     final id = categoryIds[category];
     if (id == null) throw const ErrorApi('Categoría no disponible en MySQL.');
-    final contacto = await api.miContacto();
-    if (contacto == null) throw const ErrorApi('Completa Mi contacto para publicar.');
-    String fmt(DateTime d) =>
-        '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-    await api.crearSolicitudPublicacion({
+    final nueva = await api.crearPublicacion({
       'titulo': title,
       'id_categoria': id,
+      'tipo': kind,
       'descripcion': description,
       'ubicacion': location,
       'cantidad': people.toString(),
-      'disponible_desde': fmt(start),
-      'disponible_hasta': fmt(end),
-      'contacto_autorizado': contacto.medioPreferido == 'CORREO' ? contacto.correo : contacto.telefono
+      'disponible_desde': _fecha(start),
+      'disponible_hasta': _fecha(end),
+      'clave_envio': claveEnvio,
     });
-    await loadMine();
-  }
-
-  Future<void> updatePublicationStatus(String id, RequestStatus status, {String? reason, String? tipo}) async {
-    await api.adminDecision(id, status == RequestStatus.approved, motivo: reason, tipo: tipo);
-    await refresh();
-    await refreshJunta();
+    try {
+      await _cargarPublicaciones(); // lista definitiva y ordenada del backend
+    } catch (_) {
+      jobs.removeWhere((j) => j.id == nueva.id); // sin red: se muestra el registro confirmado, sin duplicarlo
+      jobs.insert(0, nueva);
+    }
+    // Si los filtros activos ocultarían la nueva publicación, se limpian para que aparezca primero.
+    if (!filteredJobs.any((j) => j.id == nueva.id)) {
+      search = '';
+      selectedCategory = 'Todas';
+    }
+    notifyListeners();
+    unawaited(loadMine());
+    return nueva;
   }
 
   Future<void> updateJob(JobPost job, {required int people, required DateTime start, required DateTime end}) async {
-    String fmt(DateTime d) =>
-        '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
     await api.adminModificarPublicacion(job.id, {
       'descripcion': job.description,
       'cantidad': people.toString(),
       'ubicacion': job.location,
-      'disponible_desde': fmt(start),
-      'disponible_hasta': fmt(end)
+      'disponible_desde': _fecha(start),
+      'disponible_hasta': _fecha(end)
     });
     await refresh();
   }

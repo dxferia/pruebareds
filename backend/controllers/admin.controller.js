@@ -1,7 +1,6 @@
 const admin = require('../services/admin.service');
 const { requerir, texto, id, fechaValida } = require('../utils/validacion');
 
-const ESTADOS_SOLICITUD = ['PENDIENTE', 'APROBADA', 'RECHAZADA'];
 // Flutter envía RequestStatus.name.toUpperCase() (APPROVED, SUSPENDED…); se aceptan ambos idiomas.
 const ESTADO_CUENTA = {
   PENDIENTE: 'PENDIENTE', APROBADA: 'APROBADA', RECHAZADA: 'RECHAZADA', SUSPENDIDA: 'SUSPENDIDA',
@@ -9,21 +8,6 @@ const ESTADO_CUENTA = {
 };
 
 module.exports = {
-  solicitudesPublicacion: async (req, res) => {
-    const { estado } = req.query;
-    if (estado !== undefined) requerir(ESTADOS_SOLICITUD.includes(estado), 'Estado no válido.');
-    res.json(await admin.solicitudesPublicacion(estado));
-  },
-
-  aprobar: async (req, res) => {
-    const tipo = req.body?.tipo;
-    requerir(['LABOR', 'SERVICIO'].includes(tipo), 'El tipo debe ser LABOR o SERVICIO.');
-    res.json(await admin.aprobar(id(req.params.id), tipo));
-  },
-
-  rechazar: async (req, res) => res.json(await admin.rechazar(id(req.params.id),
-    texto(req.body?.motivo, 2000, 'Escribe un motivo de rechazo (mínimo 5 caracteres).', 5))),
-
   solicitudesContacto: async (req, res) => res.json(await admin.solicitudesContacto()),
 
   decidirContacto: async (req, res) => {

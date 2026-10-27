@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 import '../services/app_state.dart';
 import '../utils/app_theme.dart';
+import '../utils/route_names.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/navigation.dart';
 import '../widgets/ui_helpers.dart';
@@ -16,6 +18,9 @@ class PublishScreen extends StatefulWidget {
 class _PublishScreenState extends State<PublishScreen> {
   final formKey = GlobalKey<FormState>();
   String category = 'Labores agrícolas';
+  String kind = 'LABOR';
+  bool sending = false;
+  String? submissionKey; // se conserva entre reintentos: el servidor no duplica la publicación
   final title = TextEditingController();
   final description = TextEditingController();
   final quantity = TextEditingController();
@@ -35,7 +40,7 @@ class _PublishScreenState extends State<PublishScreen> {
   @override
   Widget build(BuildContext context) {
     return AppShell(
-      title: 'Enviar para publicación',
+      title: 'Publicar servicio',
       role: 'Habitante',
       showBack: true,
       bottomIndex: 2,
@@ -45,7 +50,7 @@ class _PublishScreenState extends State<PublishScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(22, 16, 22, 28),
           children: [
-            Text('Nueva solicitud de publicación', style: Theme.of(context).textTheme.titleLarge),
+            Text('Nueva publicación', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 18),
             _label('Título'),
             TextFormField(controller: title, validator: _required),
@@ -57,6 +62,16 @@ class _PublishScreenState extends State<PublishScreen> {
                   .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                   .toList(),
               onChanged: (v) => setState(() => category = v ?? category),
+            ),
+            const SizedBox(height: 12),
+            _label('Tipo'),
+            DropdownButtonFormField<String>(
+              initialValue: kind,
+              items: const [
+                DropdownMenuItem(value: 'LABOR', child: Text('Labor')),
+                DropdownMenuItem(value: 'SERVICIO', child: Text('Servicio')),
+              ],
+              onChanged: (v) => setState(() => kind = v ?? kind),
             ),
             const SizedBox(height: 12),
             _label('Descripción'),
@@ -83,10 +98,10 @@ class _PublishScreenState extends State<PublishScreen> {
             const SizedBox(height: 72),
             const InfoCard(
               background: AppColors.background,
-              child: Text('La Junta revisará antes de publicar.'),
+              child: Text('Tu publicación aparecerá de inmediato, en primer lugar, en Oficios disponibles.'),
             ),
             const SizedBox(height: 16),
-            PrimaryButton(label: 'Enviar a revisión', onPressed: _submit),
+            PrimaryButton(label: sending ? 'Publicando...' : 'Publicar', loading: sending, onPressed: _submit),
           ],
         ),
       ),
@@ -112,15 +127,22 @@ class _PublishScreenState extends State<PublishScreen> {
   }
 
   Future<void> _submit() async {
-    if (!formKey.currentState!.validate()) return;
+    if (sending || !formKey.currentState!.validate()) return;
     if(to.isBefore(from)){ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('La fecha final debe ser posterior a la inicial.')));return;}
+    setState(() => sending = true);
     try {
-      await widget.state.createPublication(title:title.text.trim(),category:category,
-        description:description.text.trim(),location:location.text.trim(),start:from,end:to,people:int.parse(quantity.text));
+      await widget.state.createPublication(title:title.text.trim(),category:category,kind:kind,
+        description:description.text.trim(),location:location.text.trim(),start:from,end:to,people:int.parse(quantity.text),
+        claveEnvio: submissionKey ??= ApiService.claveEnvio());
       if(!mounted)return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('Solicitud guardada en MySQL para revisión.')));
-      Navigator.of(context).pop();
-    }catch(e){if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));}
+      // Solo tras la confirmación del backend: el catálogo ya la muestra en primer lugar.
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content:Text('¡Publicado! Tu servicio ya aparece primero en el catálogo.')));
+      Navigator.of(context).pushNamedAndRemoveUntil(Routes.jobs, (r) => false);
+    }catch(e){
+      if(mounted)ScaffoldMessenger.of(context).showSnackBar(SnackBar(content:Text(e.toString())));
+    }finally{
+      if(mounted)setState(() => sending = false);
+    }
   }
 }
 

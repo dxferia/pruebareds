@@ -1,11 +1,9 @@
 // Montado en /api/admin detrás de middleware/auth.admin (X-Admin-Key).
+// Las publicaciones ya no se aprueban: la Junta solo las edita o las cierra.
 const { Router } = require('express');
 const c = require('../controllers/admin.controller');
 
 module.exports = Router()
-  .get('/solicitudes-publicacion', c.solicitudesPublicacion)
-  .post('/solicitudes-publicacion/:id/aprobar', c.aprobar)
-  .post('/solicitudes-publicacion/:id/rechazar', c.rechazar)
   .get('/solicitudes-contacto', c.solicitudesContacto)
   .patch('/solicitudes-contacto/:id', c.decidirContacto)
   .patch('/publicaciones/:id', c.actualizarPublicacion)

@@ -6,7 +6,6 @@ import '../utils/app_theme.dart';
 import '../widgets/app_shell.dart';
 import '../widgets/navigation.dart';
 import '../widgets/ui_helpers.dart';
-import 'review_request_screen.dart';
 import 'manage_publication_screen.dart';
 
 class CommunityDashboardScreen extends StatelessWidget {
@@ -24,7 +23,6 @@ class CommunityDashboardScreen extends StatelessWidget {
       body: AnimatedBuilder(
         animation: state,
         builder: (context, _) {
-          final pending = state.publicationRequests.where((p) => p.status == RequestStatus.pending).toList();
           final active = state.jobs.where((j) => j.status == RequestStatus.active).length;
           final pendingAccess = state.accesses.where((a) => a.status == RequestStatus.pending).length;
           return ListView(
@@ -42,49 +40,14 @@ class CommunityDashboardScreen extends StatelessWidget {
               mainAxisSpacing: 14,
               childAspectRatio: 1.9,
               children: [
-                _Metric(value: '${pending.length}', label: 'Solicitudes\npendientes'),
+                _Metric(value: '${state.accesses.length}', label: 'Cuentas\nregistradas'),
                 _Metric(value: '$active', label: 'Publicaciones\nactivas'),
                 _Metric(value: '${state.contactRequests.length}', label: 'Solicitudes\nde contacto'),
                 _Metric(value: '$pendingAccess', label: 'Acciones\npor revisar'),
               ],
             ),
             const SizedBox(height: 24),
-            Text('Pendientes de revisión', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
-            if (pending.isEmpty)
-              const InfoCard(child: Text('No hay solicitudes pendientes.'))
-            else
-              ...pending.map((p) => Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(p.title, style: Theme.of(context).textTheme.titleMedium),
-                                  const SizedBox(height: 6),
-                                  Text('Enviado por habitante · Hoy', style: Theme.of(context).textTheme.bodySmall),
-                                ],
-                              ),
-                            ),
-                            SizedBox(
-                              width: 92,
-                              child: FilledButton(
-                                onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => ReviewRequestScreen(state: state, request: p))),
-                                child: const Text('Revisar'),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )),
-            const SizedBox(height: 8),
-            Text('Publicaciones activas', style: Theme.of(context).textTheme.titleLarge),
+            Text('Publicaciones recientes', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
             ...state.jobs.where((j) => j.status == RequestStatus.active).take(2).map((job) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),

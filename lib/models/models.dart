@@ -12,6 +12,7 @@ class JobPost {
     required this.people,
     this.status = RequestStatus.active,
     this.kind = 'Labor',
+    this.publishedAt,
   });
 
   final String id;
@@ -24,6 +25,7 @@ class JobPost {
   int people;
   RequestStatus status;
   String kind;
+  final DateTime? publishedAt; // fecha_publicacion: la asigna MySQL al publicar
 }
 
 class ContactRequest {
@@ -44,34 +46,6 @@ class ContactRequest {
   RequestStatus status;
 }
 
-class PublicationRequest {
-  PublicationRequest({
-    required this.id,
-    required this.title,
-    required this.category,
-    required this.description,
-    required this.location,
-    required this.startDate,
-    required this.endDate,
-    required this.people,
-    required this.createdAt,
-    this.status = RequestStatus.pending,
-    this.rejectionReason,
-  });
-
-  final String id;
-  String title;
-  String category;
-  String description;
-  String location;
-  DateTime startDate;
-  DateTime endDate;
-  int people;
-  DateTime createdAt;
-  RequestStatus status;
-  String? rejectionReason;
-}
-
 class CommunityAccess {
   CommunityAccess({required this.id,required this.name, required this.status});
 
@@ -89,7 +63,7 @@ class HistoryEntry {
 }
 
 
-// Mappers for the physical model travesias_conecta (no demo records in production).
+// Mappers for the physical model sihaychamba (no demo records in production).
 RequestStatus estadoDesdeSql(Object? e) => switch (e?.toString().toUpperCase()) {
   'PENDIENTE' => RequestStatus.pending,
   'APROBADA' => RequestStatus.approved,
@@ -108,18 +82,9 @@ extension JobPostApi on JobPost {
     location:d['ubicacion'].toString(), description:d['descripcion'].toString(),
     startDate:fechaDesdeSql(d['disponible_desde']), endDate:fechaDesdeSql(d['disponible_hasta']),
     people:cantidadDesdeSql(d['cantidad']), kind:d['tipo']=='SERVICIO'?'Servicio':'Labor',
-    status:d['activa']==0?RequestStatus.expired:RequestStatus.active,
-  );
-}
-
-extension PublicationRequestApi on PublicationRequest {
-  static PublicationRequest fromJson(Map<String,dynamic> d) => PublicationRequest(
-    id:d['id_solicitud'].toString(),title:d['titulo'].toString(),
-    category:d['nombre_categoria'].toString(),description:d['descripcion'].toString(),
-    location:d['ubicacion'].toString(), startDate:fechaDesdeSql(d['disponible_desde']),
-    endDate:fechaDesdeSql(d['disponible_hasta']),people:cantidadDesdeSql(d['cantidad']),
-    createdAt:fechaDesdeSql(d['fecha_solicitud']), status:estadoDesdeSql(d['estado']),
-    rejectionReason:d['motivo_rechazo']?.toString(),
+    // El catálogo solo trae vigentes; /publicaciones/mias marca vigente = 0 si está cerrada o vencida.
+    status:(d['vigente'] ?? d['activa'])==0?RequestStatus.expired:RequestStatus.active,
+    publishedAt:DateTime.tryParse(d['fecha_publicacion']?.toString() ?? ''),
   );
 }
 

@@ -1,6 +1,5 @@
 // Gestión de la Junta (protegida con X-Admin-Key). Escrituras mediante los procedimientos de sihaychamba,
 // que registran el actor en historial_gestion.
-const crypto = require('node:crypto');
 const { pool, transaccion } = require('../config/db');
 const { HttpError } = require('../utils/validacion');
 
@@ -10,27 +9,6 @@ async function uno(sql, params, mensaje404) {
   const [rows] = await pool.execute(sql, params);
   if (!rows.length) throw new HttpError(404, mensaje404);
   return rows[0];
-}
-
-async function solicitudesPublicacion(estado) {
-  const [rows] = await pool.execute(`SELECT id_solicitud, id_solicitante, solicitante, id_categoria, nombre_categoria, titulo,
-    descripcion, cantidad, ubicacion, disponible_desde, disponible_hasta, contacto_autorizado, fecha_solicitud, estado, motivo_rechazo
-    FROM vw_solicitudes_publicacion${estado ? ' WHERE estado = ?' : ''} ORDER BY fecha_solicitud DESC LIMIT 200`, estado ? [estado] : []);
-  return rows;
-}
-
-async function aprobar(idSolicitud, tipo) {
-  const s = await uno('SELECT id_solicitante FROM solicitud_publicacion WHERE id_solicitud = ?', [idSolicitud], 'La solicitud no existe.');
-  const idPublicacion = `pub-${crypto.randomUUID()}`;
-  // La persona solicitante queda como responsable; el método de pago no lo define el flujo actual.
-  await pool.query('CALL sp_aprobar_solicitud_publicacion(?,?,?,?,?,?)', [idSolicitud, idPublicacion, s.id_solicitante, null, tipo, ACTOR]);
-  return { id_solicitud: idSolicitud, id_publicacion: idPublicacion, estado: 'APROBADA' };
-}
-
-async function rechazar(idSolicitud, motivo) {
-  await uno('SELECT 1 FROM solicitud_publicacion WHERE id_solicitud = ?', [idSolicitud], 'La solicitud no existe.');
-  await pool.query('CALL sp_rechazar_solicitud_publicacion(?,?,?)', [idSolicitud, motivo, ACTOR]);
-  return { id_solicitud: idSolicitud, estado: 'RECHAZADA' };
 }
 
 async function solicitudesContacto() {
@@ -108,6 +86,6 @@ async function cambiarEstadoEncuesta(id, estado) {
 
 module.exports = {
   contactos, resultadosEncuesta, cambiarEstadoEncuesta,
-  solicitudesPublicacion, aprobar, rechazar, solicitudesContacto, decidirContacto,
+  solicitudesContacto, decidirContacto,
   actualizarPublicacion, cerrarPublicacion, cuentas, cambiarEstadoCuenta, historial,
 };

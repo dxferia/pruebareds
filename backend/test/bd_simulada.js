@@ -16,6 +16,7 @@ function crearBd() {
     contacto: new Map(),
     respuestas: [],
     historial: [],
+    reloj: '2026-10-26 09:00:00', // fecha_publicacion que asigna el DEFAULT CURRENT_TIMESTAMP simulado
     encuesta: { id_encuesta: 'travesias-usabilidad-v1', titulo: 'Encuesta de usabilidad', descripcion: 'Prueba', version_encuesta: 1 },
     preguntas: [1, 2].map((n) => ({ id_pregunta: n, numero: n, texto: `P${n}`, tipo: 'ESCALA', obligatoria: 1, opciones_json: null })),
   };
@@ -23,6 +24,9 @@ function crearBd() {
   const vigente = (p) => p.activa && p.disponible_hasta >= hoy();
   const vista = (p) => ({ ...p, nombre_categoria: t.categoria.find((c) => c.id_categoria === p.id_categoria).nombre_categoria,
     responsable: t.cuenta.get(p.id_responsable).nombre, nombre_metodo_pago: null });
+  // Solo se ordena si la consulta lo pide: así la prueba detecta un ORDER BY olvidado.
+  const recientes = (s, rows) => (s.includes('ORDER BY fecha_publicacion DESC, id_publicacion DESC')
+    ? rows.sort((a, b) => b.fecha_publicacion.localeCompare(a.fecha_publicacion) || b.id_publicacion.localeCompare(a.id_publicacion)) : rows);
 
   async function ejecutar(sql, p = [], actor) {
     const marcas = (sql.match(/\?/g) || []).length;
@@ -55,39 +59,27 @@ function crearBd() {
       let rows = [...t.publicacion.values()].filter(vigente).map(vista);
       if (has('WHERE id_categoria')) rows = rows.filter((r) => r.id_categoria === p[0]);
       if (has('WHERE id_publicacion')) rows = rows.filter((r) => r.id_publicacion === p[0]);
-      return [rows];
+      return [recientes(s, rows)];
     }
-    // Solicitudes de publicación
-    if (has('CALL sp_crear_solicitud_publicacion')) {
-      if (!t.categoria.some((c) => c.id_categoria === p[2])) throw Object.assign(new Error('fk'), { code: 'ER_NO_REFERENCED_ROW_2' });
-      const [id_solicitud, id_solicitante, id_categoria, titulo, descripcion, cantidad, ubicacion, disponible_desde, disponible_hasta, contacto_autorizado] = p;
-      t.solicitud.set(id_solicitud, { id_solicitud, id_solicitante, id_categoria, titulo, descripcion, cantidad, ubicacion, disponible_desde,
-        disponible_hasta, contacto_autorizado, fecha_solicitud: `${hoy()} 10:00:00`, estado: 'PENDIENTE', motivo_rechazo: null });
+    // Publicación directa: mismas validaciones y orden que sp_crear_publicacion (004_publicacion_directa.sql).
+    if (has('CALL sp_crear_publicacion')) {
+      const [id_publicacion, id_responsable, id_categoria, id_metodo_pago, titulo, descripcion, ubicacion, disponible_desde, disponible_hasta, cantidad, tipo] = p;
+      if (!['LABOR', 'SERVICIO'].includes(tipo)) throw err45000('El tipo debe ser LABOR o SERVICIO.');
+      if (disponible_hasta < disponible_desde) throw err45000('La fecha final no puede ser anterior a la inicial.');
+      if (disponible_hasta < hoy()) throw err45000('La fecha final ya pasó: la publicación no sería visible.');
+      if (!t.categoria.some((c) => c.id_categoria === id_categoria)) throw err45000('La categoría no existe.');
+      const cuenta = [...t.perfil.values()].some((r) => r.id_cuenta === id_responsable) && t.cuenta.get(id_responsable);
+      if (!cuenta) throw err45000('El responsable no existe o no ha registrado Mi contacto.');
+      if (['RECHAZADA', 'SUSPENDIDA'].includes(cuenta.estado)) throw err45000('La cuenta del responsable no puede publicar. Comunícate con la Junta.');
+      if (t.publicacion.has(id_publicacion)) throw Object.assign(new Error('dup'), { code: 'ER_DUP_ENTRY' });
+      t.publicacion.set(id_publicacion, { id_publicacion, id_solicitud_origen: null, id_categoria, id_responsable, id_metodo_pago, titulo,
+        descripcion, ubicacion, disponible_desde, disponible_hasta, cantidad, tipo, activa: 1, fecha_publicacion: t.reloj });
+      t.historial.push({ fecha: t.reloj, actor: id_responsable, accion: 'CREAR_PUBLICACION', elemento_afectado: `publicacion:${id_publicacion}` });
       return [{ affectedRows: 1 }];
     }
-    if (has('FROM vw_solicitudes_publicacion')) {
-      let rows = [...t.solicitud.values()].map((r) => ({ ...r, solicitante: t.cuenta.get(r.id_solicitante).nombre,
-        nombre_categoria: t.categoria.find((c) => c.id_categoria === r.id_categoria).nombre_categoria }));
-      if (has('WHERE id_solicitante')) rows = rows.filter((r) => r.id_solicitante === p[0]);
-      if (has('WHERE estado')) rows = rows.filter((r) => r.estado === p[0]);
-      return [rows];
-    }
-    if (has('FROM solicitud_publicacion WHERE id_solicitud')) { const r = t.solicitud.get(p[0]); return [r ? [r] : []]; }
-    if (has('CALL sp_aprobar_solicitud_publicacion')) {
-      const s = t.solicitud.get(p[0]);
-      if (s.estado !== 'PENDIENTE') throw err45000('Solo una solicitud PENDIENTE puede aprobarse.');
-      s.estado = 'APROBADA';
-      t.publicacion.set(p[1], { id_publicacion: p[1], id_categoria: s.id_categoria, id_responsable: p[2], id_metodo_pago: p[3], titulo: s.titulo,
-        descripcion: s.descripcion, ubicacion: s.ubicacion, disponible_desde: s.disponible_desde, disponible_hasta: s.disponible_hasta,
-        cantidad: s.cantidad, tipo: p[4], activa: 1 });
-      t.historial.push({ fecha: `${hoy()} 10:00:00`, actor: p[5], accion: 'CREAR_PUBLICACION', elemento_afectado: `publicacion:${p[1]}` });
-      return [{ affectedRows: 1 }];
-    }
-    if (has('CALL sp_rechazar_solicitud_publicacion')) {
-      const s = t.solicitud.get(p[0]);
-      if (s.estado !== 'PENDIENTE') throw err45000('La solicitud no existe o ya fue procesada.');
-      Object.assign(s, { estado: 'RECHAZADA', motivo_rechazo: p[1] });
-      return [{ affectedRows: 1 }];
+    if (has('FROM publicacion p JOIN categoria c') && has('WHERE p.id_responsable')) {
+      return [recientes(s, [...t.publicacion.values()].filter((r) => r.id_responsable === p[0])
+        .map((r) => ({ ...vista(r), vigente: vigente(r) ? 1 : 0 })))];
     }
     // Solicitudes de contacto
     if (has('SELECT id_responsable, (SELECT COUNT(*)')) {

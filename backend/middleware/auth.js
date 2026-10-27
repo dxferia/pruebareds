@@ -8,7 +8,7 @@ const contactos = require('../services/contactos.service');
 const sha256 = (v) => crypto.createHash('sha256').update(v).digest();
 
 function admin(req, res, next) {
-  const esperada = process.env.ADMIN_API_KEY || '';
+  const esperada = (process.env.ADMIN_API_KEY || '').trim();
   if (esperada.length < 32) throw new HttpError(503, 'La administración no está configurada en el servidor (ADMIN_API_KEY).');
   const recibida = req.get('X-Admin-Key');
   if (!recibida) throw new HttpError(401, 'Falta la clave administrativa.');
@@ -31,7 +31,8 @@ async function cargarContacto(req, obligatorio) {
 const contacto = async (req, res, next) => { req.contacto = await cargarContacto(req, true); next(); };
 const contactoOpcional = async (req, res, next) => { req.contacto = await cargarContacto(req, false); next(); };
 
-// Las cuentas suspendidas o rechazadas por la Junta no pueden crear solicitudes nuevas.
+// Las cuentas suspendidas o rechazadas por la Junta no pueden publicar ni pedir contacto.
+// Una cuenta PENDIENTE sí puede: el estado de la cuenta no es una aprobación de publicaciones.
 function cuentaHabilitada(req, res, next) {
   if (['SUSPENDIDA', 'RECHAZADA'].includes(req.contacto.estado)) {
     throw new HttpError(403, `Tu cuenta está ${req.contacto.estado.toLowerCase()}. Comunícate con la Junta.`);

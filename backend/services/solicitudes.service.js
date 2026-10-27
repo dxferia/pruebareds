@@ -1,22 +1,8 @@
-// Solicitudes de publicación y de contacto de la persona identificada con X-Contact-Key.
-// Las escrituras usan los procedimientos de sihaychamba (validan fechas, vigencia y responsable).
+// Solicitudes de contacto de la persona identificada con X-Contact-Key (la publicación es directa:
+// ver catalogo.service.crear). Las escrituras usan los procedimientos de sihaychamba.
 const crypto = require('node:crypto');
 const { pool } = require('../config/db');
 const { HttpError } = require('../utils/validacion');
-
-async function crearPublicacion(idCuenta, d) {
-  const id = `sol-${crypto.randomUUID()}`;
-  await pool.query('CALL sp_crear_solicitud_publicacion(?,?,?,?,?,?,?,?,?,?)', [id, idCuenta, d.id_categoria, d.titulo,
-    d.descripcion, d.cantidad, d.ubicacion, d.disponible_desde, d.disponible_hasta, d.contacto_autorizado]);
-  return { id_solicitud: id, estado: 'PENDIENTE' };
-}
-
-async function misPublicaciones(idCuenta) {
-  const [rows] = await pool.execute(`SELECT id_solicitud, titulo, descripcion, cantidad, ubicacion, disponible_desde, disponible_hasta,
-    fecha_solicitud, estado, motivo_rechazo, id_categoria, nombre_categoria
-    FROM vw_solicitudes_publicacion WHERE id_solicitante = ? ORDER BY fecha_solicitud DESC`, [idCuenta]);
-  return rows;
-}
 
 async function crearContacto(idCuenta, d) {
   const [rows] = await pool.execute(`SELECT id_responsable,
@@ -37,4 +23,4 @@ async function misContactos(idCuenta) {
   return rows;
 }
 
-module.exports = { crearPublicacion, misPublicaciones, crearContacto, misContactos };
+module.exports = { crearContacto, misContactos };

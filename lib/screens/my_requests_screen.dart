@@ -6,7 +6,7 @@ import '../widgets/app_shell.dart';
 import '../widgets/navigation.dart';
 import '../widgets/status_chip.dart';
 import '../widgets/ui_helpers.dart';
-import 'rejected_detail_screen.dart';
+import 'job_detail_screen.dart';
 
 class MyRequestsScreen extends StatefulWidget {
   const MyRequestsScreen({super.key, required this.state});
@@ -47,14 +47,14 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
               const SizedBox(height: 14),
               Text('Tus movimientos recientes', style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: 12),
-              if (publications && widget.state.publicationRequests.isEmpty)
-                const InfoCard(child: Text('No hay solicitudes de publicación asociadas a tu contacto.')),
+              if (publications && widget.state.myPublications.isEmpty)
+                const InfoCard(child: Text('Todavía no has publicado servicios.')),
               if (publications)
-                ...widget.state.publicationRequests.map((p) => _PublicationTile(
-                      request: p,
-                      onTap: p.status == RequestStatus.rejected
-                          ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RejectedDetailScreen(state: widget.state, request: p)))
-                          : null,
+                ...widget.state.myPublications.map((p) => _SimpleTile(
+                      title: p.title,
+                      subtitle: 'Publicada · ${p.publishedAt == null ? '-' : '${p.publishedAt!.day}/${p.publishedAt!.month}'}',
+                      status: p.status,
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => JobDetailScreen(state: widget.state, job: p))),
                     ))
               else if (widget.state.contactRequests.isEmpty)
                 const InfoCard(child: Text('Todavía no tienes solicitudes de contacto.'))
@@ -86,21 +86,6 @@ class _TabButton extends StatelessWidget {
         decoration: BoxDecoration(color: selected ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(9)),
         child: Text(label, style: TextStyle(fontWeight: selected ? FontWeight.w700 : FontWeight.w500)),
       ),
-    );
-  }
-}
-
-class _PublicationTile extends StatelessWidget {
-  const _PublicationTile({required this.request, this.onTap});
-  final PublicationRequest request;
-  final VoidCallback? onTap;
-  @override
-  Widget build(BuildContext context) {
-    return _SimpleTile(
-      title: request.title,
-      subtitle: 'Publicación · ${request.createdAt.day}/${request.createdAt.month}',
-      status: request.status,
-      onTap: onTap,
     );
   }
 }

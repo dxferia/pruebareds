@@ -15,7 +15,7 @@ class HistoryScreen extends StatelessWidget {
       role: 'Junta',
       junta: true,
       showBack: true,
-      bottomIndex: 0,
+      bottomIndex: 1,
       onBottomTap: (i) => juntaNav(context, i),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(22, 18, 22, 28),

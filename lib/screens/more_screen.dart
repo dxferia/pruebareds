@@ -28,8 +28,8 @@ class MoreScreen extends StatelessWidget {
           const SizedBox(height: 22),
           _MenuTile(
             icon: Icons.publish_outlined,
-            title: 'Enviar para publicación',
-            subtitle: 'Crear una nueva solicitud para revisión',
+            title: 'Publicar servicio',
+            subtitle: 'Aparece de inmediato en el catálogo',
             onTap: () => Navigator.pushNamed(context, Routes.publish),
           ),
           _MenuTile(icon:Icons.contact_phone_outlined,title:'Mi contacto',subtitle:'Registrar o editar datos de contacto',
@@ -71,7 +71,8 @@ class MoreScreen extends StatelessWidget {
     final clave=TextEditingController();
     final key=await showDialog<String>(context:context,builder:(ctx)=>AlertDialog(
       title:const Text('Acceso administrativo de la Junta'),
-      content:TextField(controller:clave,obscureText:true,decoration:const InputDecoration(labelText:'Clave administrativa del servidor')),
+      content:TextField(controller:clave,obscureText:true,decoration:const InputDecoration(labelText:'Clave administrativa del servidor',
+        helperText:'El valor de ADMIN_API_KEY en backend/.env')),
       actions:[TextButton(onPressed:()=>Navigator.pop(ctx),child:const Text('Cancelar')),
         FilledButton(onPressed:()=>Navigator.pop(ctx,clave.text),child:const Text('Entrar'))]));
     // Never hardcode or persist the secret in the application.

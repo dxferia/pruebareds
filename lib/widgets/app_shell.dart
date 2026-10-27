@@ -29,7 +29,7 @@ class AppShell extends StatelessWidget {
     final items = junta
         ? const [
             BottomNavigationBarItem(icon: Icon(Icons.groups_outlined), activeIcon: Icon(Icons.groups), label: 'Junta'),
-            BottomNavigationBarItem(icon: Icon(Icons.pending_actions_outlined), activeIcon: Icon(Icons.pending_actions), label: 'Pendientes'),
+            BottomNavigationBarItem(icon: Icon(Icons.history_outlined), activeIcon: Icon(Icons.history), label: 'Historial'),
             BottomNavigationBarItem(icon: Icon(Icons.publish_outlined), activeIcon: Icon(Icons.publish), label: 'Publicar'),
             BottomNavigationBarItem(icon: Icon(Icons.manage_accounts_outlined), activeIcon: Icon(Icons.manage_accounts), label: 'Accesos'),
           ]

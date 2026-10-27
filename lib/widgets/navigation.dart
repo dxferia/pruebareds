@@ -15,7 +15,7 @@ void residentNav(BuildContext context, int index) {
 void juntaNav(BuildContext context, int index) {
   final route = switch (index) {
     0 => Routes.community,
-    1 => Routes.community,
+    1 => Routes.history,
     2 => Routes.juntaPublications,
     _ => Routes.access,
   };

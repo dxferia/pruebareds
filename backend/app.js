@@ -24,6 +24,10 @@ const PORT = process.env.PORT || 8082;
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`Servidor corriendo en el puerto ${PORT}`);
+    // .env solo se lee al arrancar (npm run dev tampoco lo vigila): reinicia tras cambiar ADMIN_API_KEY.
+    const clave = (process.env.ADMIN_API_KEY || '').trim().length;
+    console.log(clave >= 32 ? `Administración de la Junta: activa (clave de ${clave} caracteres).`
+      : 'Administración de la Junta: DESACTIVADA. Pon ADMIN_API_KEY (≥ 32 caracteres) en backend/.env y reinicia.');
     estadoBd().then((bd) => console.log(bd.conectada
       ? `MySQL conectado a "${bd.base}". Tablas faltantes: ${bd.tablas_faltantes.join(', ') || 'ninguna'}`
       : `MySQL NO disponible (${bd.codigo}). ${bd.sugerencia || ''}`));

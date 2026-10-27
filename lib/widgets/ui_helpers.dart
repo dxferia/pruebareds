@@ -2,10 +2,11 @@ import 'package:flutter/material.dart';
 import '../utils/app_theme.dart';
 
 class PrimaryButton extends StatelessWidget {
-  const PrimaryButton({super.key, required this.label, required this.onPressed, this.icon});
+  const PrimaryButton({super.key, required this.label, required this.onPressed, this.icon, this.loading = false});
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
+  final bool loading; // deshabilita el botón y muestra el indicador de carga (evita envíos duplicados)
 
   @override
   Widget build(BuildContext context) {
@@ -13,8 +14,10 @@ class PrimaryButton extends StatelessWidget {
       width: double.infinity,
       height: 44,
       child: FilledButton.icon(
-        onPressed: onPressed,
-        icon: icon == null ? const SizedBox.shrink() : Icon(icon, size: 18),
+        onPressed: loading ? null : onPressed,
+        icon: loading
+            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+            : icon == null ? const SizedBox.shrink() : Icon(icon, size: 18),
         label: Text(label),
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.primary,
