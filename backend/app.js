@@ -6,6 +6,10 @@ const { noEncontrado, manejarErrores } = require('./middleware/errores');
 const { estadoBd } = require('./services/salud.service');
 
 const app = express();
+
+
+
+
 app.disable('x-powered-by');
 
 app.use(cors); // antes de express.json para que los errores de JSON también lleven cabeceras CORS
